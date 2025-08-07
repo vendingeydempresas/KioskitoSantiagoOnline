@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kioskito Santiago Online</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+    }
+
+    header {
+      background-color: #ff6600;
+      padding: 1rem;
+      color: white;
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+      padding: 1rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .product-card {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100%;
+      transition: transform 0.2s ease;
+    }
+
+    .product-card:hover {
+      transform: translateY(-5px);
+    }
+
+    .product-card img {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+
+    .product-title {
+      font-size: 1rem;
+      margin: 0.5rem 0;
+      font-weight: bold;
+      color: #333;
+      text-align: center;
+    }
+
+    .product-price {
+      color: #ff6600;
+      font-size: 1.1rem;
+      font-weight: bold;
+      margin: 0.3rem 0;
+      text-align: center;
+    }
+
+    .buy-button {
+      background-color: #ff6600;
+      color: white;
+      border: none;
+      padding: 0.5rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background-color 0.3s;
+      margin-top: 0.5rem;
+    }
+
+    .buy-button:hover {
+      background-color: #e65c00;
+    }
+
+    .no-image {
+      background-color: #ddd;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 160px;
+      border-radius: 8px;
+      color: #999;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <header> Kioskito Santiago Online </header>
+
+  <!-- Filtros -->
+  <section style="max-width: 1200px; margin: 1rem auto; display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center;">
+    <select id="categoriaFiltro" class="buy-button" style="padding: 0.4rem;">
+      <option value="">Todas las categorías</option>
+    </select>
+
+    <select id="ordenPrecio" class="buy-button" style="padding: 0.4rem;">
+      <option value="">Ordenar por precio</option>
+      <option value="menor">Menor a mayor</option>
+      <option value="mayor">Mayor a menor</option>
+    </select>
+
+    <select id="ordenNombre" class="buy-button" style="padding: 0.4rem;">
+      <option value="">Ordenar por nombre</option>
+      <option value="az">A → Z</option>
+      <option value="za">Z → A</option>
+    </select>
+  </section>
+
+  <main>
+    <div class="grid-container" id="product-list">
+      <!-- Productos se insertan dinámicamente -->
+    </div>
+  </main>
+
+
+  <!-- Botón ver más -->
+  <div style="text-align:center; padding: 1rem;">
+    <button id="verMasBtn" class="buy-button" style="padding: 0.7rem 1.5rem;">Ver más productos</button>
+  </div>
+
+  <!-- Botón carrito flotante -->
+  <button onclick="toggleCarrito()" style="position: fixed; top: 20px; right: 20px; background-color: #ff6600; color: white; border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 20px; z-index: 1000; cursor: pointer;">🛒</button>
+
+  <!-- Panel del carrito -->
+  <div id="carrito" style="position: fixed; right: 0; top: 0; width: 300px; height: 100vh; background: white; box-shadow: -2px 0 5px rgba(0,0,0,0.1); padding: 1rem; overflow-y: auto; display: none; z-index: 999;">
+    <h3>🛒 Tu Carrito</h3>
+    <div id="carrito-items"></div>
+    <hr>
+    <p><strong>Total:</strong> $<span id="carrito-total">0</span></p>
+    <button onclick="comprarCarrito()" class="buy-button" style="width: 100%;">Comprar todo</button>
+  </div>
+
+  <!-- Script -->
+  <script>
+    const API_PRODUCTOS = 'https://central-api-backend.onrender.com/api/productos';
+    const API_CATALOGO = 'https://central-api-backend.onrender.com/api/catalogo';
+
+    let productos = [];
+    let catalogo = [];
+    let productosFiltrados = [];
+    let productosMostrados = 0;
+    const productosPorPagina = 20;
+    let carrito = [];
+
+    async function cargarDatos() {
+      try {
+        const [resProd, resCat] = await Promise.all([
+          fetch(API_PRODUCTOS),
+          fetch(API_CATALOGO)
+        ]);
+
+        productos = await resProd.json();
+        catalogo = await resCat.json();
+
+        cargarCategorias();
+        aplicarFiltrosYOrden();
+      } catch (e) {
+        console.error('Error cargando productos:', e);
+      }
+    }
+
+    function cargarCategorias() {
+      const categoriasUnicas = [...new Set(catalogo.map(item => item.categoria).filter(Boolean))];
+      const select = document.getElementById('categoriaFiltro');
+      categoriasUnicas.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        select.appendChild(option);
+      });
+    }
+
+    function aplicarFiltrosYOrden() {
+      const categoria = document.getElementById('categoriaFiltro').value;
+      const ordenPrecio = document.getElementById('ordenPrecio').value;
+      const ordenNombre = document.getElementById('ordenNombre').value;
+
+      productosFiltrados = productos.map(prod => {
+        const cat = catalogo.find(c => c.id_producto === prod.id_producto);
+        return { ...prod, ...cat };
+      });
+
+      if (categoria) {
+        productosFiltrados = productosFiltrados.filter(p => p.categoria === categoria);
+      }
+
+      if (ordenPrecio === 'menor') {
+        productosFiltrados.sort((a, b) => (a.precio_venta ?? 0) - (b.precio_venta ?? 0));
+      } else if (ordenPrecio === 'mayor') {
+        productosFiltrados.sort((a, b) => (b.precio_venta ?? 0) - (a.precio_venta ?? 0));
+      }
+
+      if (ordenNombre === 'az') {
+        productosFiltrados.sort((a, b) => a.nombre.localeCompare(b.nombre));
+      } else if (ordenNombre === 'za') {
+        productosFiltrados.sort((a, b) => b.nombre.localeCompare(a.nombre));
+      }
+
+      productosMostrados = 0;
+      document.getElementById('product-list').innerHTML = '';
+      mostrarSiguientePagina();
+    }
+
+    function mostrarSiguientePagina() {
+      const container = document.getElementById('product-list');
+      const productosAMostrar = productosFiltrados.slice(productosMostrados, productosMostrados + productosPorPagina);
+      productosMostrados += productosPorPagina;
+
+      productosAMostrar.forEach(prod => {
+        const imagen = prod.imagen_principal_url;
+        const precio = prod.precio_venta ?? 0;
+
+        const card = document.createElement('div');
+        card.className = 'product-card';
+
+        card.innerHTML = `
+          ${imagen ? `<img src="${imagen}" alt="${prod.nombre}">` : `<div class="no-image">Sin imagen</div>`}
+          <div class="product-title">${prod.nombre}</div>
+          <div class="product-price">$${precio.toLocaleString('es-CL')}</div>
+          <button class="buy-button" onclick="comprar('${prod.id_producto}')">Comprar</button>
+          <button class="buy-button" style="background:#333" onclick='agregarAlCarro(${JSON.stringify(prod)})'>Agregar al carro</button>
+        `;
+
+        container.appendChild(card);
+      });
+
+      if (productosMostrados >= productosFiltrados.length) {
+        document.getElementById('verMasBtn').style.display = 'none';
+      } else {
+        document.getElementById('verMasBtn').style.display = 'inline-block';
+      }
+    }
+
+function comprar(idProducto) {
+  const prod = productosFiltrados.find(p => p.id_producto === idProducto);
+  if (!prod) return;
+
+  // Enviar producto como "carrito temporal"
+  const temp = [{ ...prod, cantidad: 1 }];
+  localStorage.setItem('carritoTemp', JSON.stringify(temp));
+
+  window.location.href = 'despacho.html';
+}
+
+
+function agregarAlCarro(producto) {
+  const index = carrito.findIndex(p => p.id_producto === producto.id_producto);
+  if (index !== -1) {
+    carrito[index].cantidad += 1;
+  } else {
+    carrito.push({ ...producto, cantidad: 1 });
+  }
+  actualizarCarrito();
+  // 🔓 Mostrar automáticamente el carrito al agregar
+  document.getElementById('carrito').style.display = 'block';
+}
+
+
+    function eliminarDelCarro(id_producto) {
+      carrito = carrito.filter(p => p.id_producto !== id_producto);
+      actualizarCarrito();
+    }
+
+function actualizarCarrito() {
+  const container = document.getElementById('carrito-items');
+  const total = document.getElementById('carrito-total');
+  container.innerHTML = '';
+
+  let totalAcumulado = 0;
+
+  carrito.forEach(prod => {
+    const subtotal = (prod.precio_venta ?? 0) * prod.cantidad;
+    totalAcumulado += subtotal;
+
+    const item = document.createElement('div');
+    item.style.marginBottom = '12px';
+
+    item.innerHTML = `
+      <strong>${prod.nombre}</strong><br>
+      <div style="display: flex; align-items: center; gap: 8px; margin: 6px 0;">
+        <button onclick="cambiarCantidad('${prod.id_producto}', -1)" style="width: 25px;">–</button>
+        <span>${prod.cantidad}</span>
+        <button onclick="cambiarCantidad('${prod.id_producto}', 1)" style="width: 25px;">+</button>
+      </div>
+      <div>Subtotal: $${subtotal.toLocaleString('es-CL')}</div>
+      <button onclick="eliminarDelCarro('${prod.id_producto}')" style="margin-top: 6px; background: red; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer;">Quitar</button>
+      <hr>
+    `;
+
+    container.appendChild(item);
+  });
+
+  total.textContent = totalAcumulado.toLocaleString('es-CL');
+}
+
+
+
+    function toggleCarrito() {
+      const carritoPanel = document.getElementById('carrito');
+      carritoPanel.style.display = carritoPanel.style.display === 'none' ? 'block' : 'none';
+    }
+
+function comprarCarrito() {
+  if (carrito.length === 0) {
+    alert("Tu carrito está vacío");
+    return;
+  }
+
+  localStorage.setItem('carritoTemp', JSON.stringify(carrito));
+  window.location.href = 'despacho.html';
+}
+
+
+
+function cambiarCantidad(id_producto, delta) {
+  const index = carrito.findIndex(p => p.id_producto === id_producto);
+  if (index !== -1) {
+    carrito[index].cantidad += delta;
+    if (carrito[index].cantidad <= 0) {
+      carrito.splice(index, 1);
+    }
+    actualizarCarrito();
+  }
+}
+
+
+
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('verMasBtn').addEventListener('click', mostrarSiguientePagina);
+      document.getElementById('categoriaFiltro').addEventListener('change', aplicarFiltrosYOrden);
+      document.getElementById('ordenPrecio').addEventListener('change', aplicarFiltrosYOrden);
+      document.getElementById('ordenNombre').addEventListener('change', aplicarFiltrosYOrden);
+      cargarDatos();
+    });
+  </script>
+</body>
+</html>

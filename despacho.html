@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Datos de despacho</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      padding: 1rem;
+    }
+    h1 {
+      text-align: center;
+      color: #ff6600;
+    }
+    form {
+      max-width: 500px;
+      margin: 0 auto;
+      background: white;
+      padding: 1rem;
+      border-radius: 10px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    }
+    label {
+      display: block;
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    input, select {
+      width: 100%;
+      padding: 0.5rem;
+      margin-top: 0.3rem;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .resumen {
+      margin-top: 2rem;
+      background: #fff3e0;
+      padding: 1rem;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+    .buy-button {
+      background-color: #ff6600;
+      color: white;
+      border: none;
+      padding: 0.7rem 1rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      width: 100%;
+      margin-top: 1.5rem;
+    }
+    .buy-button:hover {
+      background-color: #e65c00;
+    }
+  </style>
+</head>
+<body>
+  <h1>Información de despacho</h1>
+  <form id="form-despacho">
+    <label for="nombre">Nombre completo</label>
+    <input type="text" id="nombre" required />
+
+    <label for="direccion">Dirección</label>
+    <input type="text" id="direccion" required />
+
+    <label for="comuna">Comuna (solo RM)</label>
+    <select id="comuna" required>
+      <option value="">Selecciona una comuna</option>
+      <option>Santiago</option>
+      <option>Providencia</option>
+      <option>Ñuñoa</option>
+      <option>La Florida</option>
+      <option>Maipú</option>
+      <option>Puente Alto</option>
+      <option>Las Condes</option>
+      <option>Independencia</option>
+      <option>San Miguel</option>
+      <option>Estación Central</option>
+      <!-- Puedes agregar todas las comunas de la RM aquí -->
+    </select>
+
+    <div class="resumen" id="resumen"></div>
+
+    <button type="submit" class="buy-button">Finalizar compra</button>
+  </form>
+
+  <script>
+    const carrito = JSON.parse(localStorage.getItem("carritoTemp") || "[]");
+    const resumenDiv = document.getElementById("resumen");
+    const form = document.getElementById("form-despacho");
+    const DESPACHO = 3000;
+
+    let total = 0;
+
+    if (carrito.length === 0) {
+      resumenDiv.innerHTML = "<strong>No hay productos en el carrito</strong>";
+    } else {
+      let html = "<strong>Resumen de tu compra:</strong><ul>";
+      carrito.forEach(p => {
+        const subtotal = (p.precio_venta || 0) * p.cantidad;
+        total += subtotal;
+        html += `<li>${p.nombre} x${p.cantidad} — $${subtotal.toLocaleString("es-CL")}</li>`;
+      });
+      total += DESPACHO;
+      html += `</ul><p>+ Despacho: $${DESPACHO.toLocaleString("es-CL")}</p>`;
+      html += `<p><strong>Total a pagar: $${total.toLocaleString("es-CL")}</strong></p>`;
+      resumenDiv.innerHTML = html;
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      if (carrito.length === 0) return alert("No hay productos para comprar");
+
+      const nombre = document.getElementById("nombre").value;
+      const direccion = document.getElementById("direccion").value;
+      const comuna = document.getElementById("comuna").value;
+
+      if (!nombre || !direccion || !comuna) {
+        alert("Por favor completa todos los campos.");
+        return;
+      }
+
+      const BACKEND_TBK = "https://central-api-backend.onrender.com/transbank";
+      const payload = {
+        title: "Compra con despacho",
+        quantity: 1,
+        price: total,
+        description: `Compra con despacho a ${direccion}, ${comuna}. Nombre: ${nombre}`,
+        external_reference: `carrito_${Date.now()}`
+      };
+
+      const query = encodeURIComponent(JSON.stringify(payload));
+      window.location.href = `${BACKEND_TBK}/pago?data=${query}`;
+    });
+  </script>
+</body>
+</html>
